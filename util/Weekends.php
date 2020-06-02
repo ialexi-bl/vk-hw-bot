@@ -22,7 +22,7 @@ class Weekends
     private static $weekends = null;
 
     /**
-     * Загружает даты каникул из файловой системы
+     * Loads vacations dates from file system
      */
     private static function init_vacations()
     {
@@ -93,7 +93,7 @@ class Weekends
     }
 
     /**
-     * Загружает даты выходных из файловой системы
+     * Loads weekends dates from file system
      */
     private static function init_weekends()
     {
@@ -101,8 +101,9 @@ class Weekends
     }
 
     /**
-     * Возвращает название и сроки каникул, которые содержат данный день. Null если день рабочий
-     * @param SchoolDay|string $day - Дата
+     * Returns name, starting and ending date of the following vacations that
+     * include given day. Null if given day is not a vacation data
+     * @param SchoolDay|string $day - Day
      * @return array|null
      */
     public static function get_vacation_for($day)
@@ -116,8 +117,8 @@ class Weekends
     }
 
     /**
-     * Проверяет, рабочий ли данный день
-     * @param SchoolDay|DateTime $day - Дата
+     * Checks whether given day is a working day
+     * @param SchoolDay|DateTime $day - Day
      * @return bool
      */
     public static function is_working($day)
@@ -131,8 +132,8 @@ class Weekends
     }
 
     /**
-     * Находит первые каникулы после указанного дня
-     * @param DateTime|null $date - Дата
+     * Finds the closest vacations after given date
+     * @param DateTime|null $date - Date
      * @return array|null
      * @throws \Exception
      */

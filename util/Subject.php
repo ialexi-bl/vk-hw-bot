@@ -126,8 +126,8 @@ class Subject
     }
 
     /**
-     * Находит следующий рабочий день после данного
-     * @param SchoolDay|null $day - Дата
+     * Finds the following working day
+     * @param SchoolDay|null $day - Date (default - today)
      * @return SchoolDay
      * @throws Exception
      */
@@ -144,8 +144,8 @@ class Subject
     }
 
     /**
-     * Проверяет, есть ли предмет в данной дате
-     * @param SchoolDay $day - Дата
+     * Checks whether there this class is on given date
+     * @param SchoolDay $day - Date
      * @return bool
      */
     public function is_on(SchoolDay $day): bool
@@ -154,7 +154,7 @@ class Subject
     }
 
     /**
-     * Возвращает строку с предметов в именительном падеже
+     * Returns string with this subject in nominative case
      * @return string
      */
     public function __toString()
@@ -163,7 +163,7 @@ class Subject
     }
 
     /**
-     * Возвращает строку с предметом в дательном падеже
+     * Returns string with this subject in dative case
      * @return string|null
      */
     public function get_dative()
@@ -182,7 +182,7 @@ class Subject
 
     /**
      * Возвращает строку с предметом в дательном падеже
-     * @param string|Subject $subj - Предмет
+     * @param string|Subject $subj - Subject
      * @return string|null
      */
     public static function get_dative_of($subj): string
@@ -192,8 +192,8 @@ class Subject
     }
 
     /**
-     * Возвращает строку с предметом в родительном падеже
-     * @param string|Subject $subj - Предмет
+     * Returns string with this subject in genitive case
+     * @param string|Subject $subj - Subject
      * @return string|null
      */
     public static function get_genitive_of(string $subj): string
@@ -205,7 +205,7 @@ class Subject
 
 
     /**
-     * Находит дату в данной строке
+     * Finds subject in given string
      * @param string $string
      * @return Subject|array
      * @throws Exception

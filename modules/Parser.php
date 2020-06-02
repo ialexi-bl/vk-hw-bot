@@ -17,8 +17,8 @@ class Parser
 {
 
     /**
-     * Разбирает строку на дату, предмет и задание (все оставшиеся символы)
-     * @param string $string - Строка
+     * Parses string into date, subject and homework (all the remaining symbols)
+     * @param string $string 
      * @return DataBundle
      * @throws InvalidDayException
      * @throws InvalidMonthException
@@ -40,11 +40,11 @@ class Parser
     }
 
     /**
-     * Возвращает слово, склонённое в соответствии с числительным
-     * @param $number - числительное
-     * @param string $word - Слово
-     * @param array $endings - Окончания для слова в формате
-     *      [именительный ед., родительный ед., родительный мн.]
+     * Returns given word, declined according to given numeral
+     * @param $number - Numeral
+     * @param string $word - Word
+     * @param array $endings - Words endings:
+     *      [nominative singular, genitive singular, genitive plural]
      * @return string
      */
     public static function decline($number, string $word, array $endings): string
