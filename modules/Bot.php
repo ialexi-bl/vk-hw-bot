@@ -425,9 +425,15 @@ class Bot
 
             $next_day = $subject->get_next_day_from($date);
 
-            if ($date->is_null()) $date = $next_day;
-            if ((string) $subject === Subject::NONE) throw new NoSubjectException("Я не нашёль предмет");
-            if ($homework === '') throw new NoHomeworkException("Я не нашёль задание");
+            if ($date->is_null()) {
+                $date = $next_day;
+            }
+            if ((string) $subject === Subject::NONE) {
+                throw new NoSubjectException("Я не нашёль предмет");
+            }
+            if ($homework === '') {
+                throw new NoHomeworkException("Я не нашёль задание");
+            }
 
             $conn = Utility::dbConnect();
             $date_right = $date->has_subject($subject);

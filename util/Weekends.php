@@ -37,6 +37,8 @@ class Weekends
         if (empty(self::$vacations)) self::init_vacations();
         $regex = '';
         $first = true;
+
+        // Construct a regex from vacations names
         foreach (self::$vacations as $name => $period) {
             if (!$first) $regex .= '|';
             $regex .= $name;
