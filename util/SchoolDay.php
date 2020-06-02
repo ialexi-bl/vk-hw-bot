@@ -63,8 +63,7 @@ class SchoolDay
     }
 
     /**
-     * Обновляет набор предметов и наличие уроков. Устанавливает стрку даты в null
-     * Использовать после обновления даты
+     * Updates classes for this school day. Should be used after date modification
      */
     private function update()
     {
@@ -77,7 +76,7 @@ class SchoolDay
     }
 
     /**
-     * Проверяет, содержит ли объект null
+     * Checks whether this school day contains null
      * @return bool
      */
     public function is_null(): bool
@@ -86,8 +85,8 @@ class SchoolDay
     }
 
     /**
-     * Проверяет, содержит ли дата предмет
-     * @param $subject - Предмет
+     * Checks whether given class appears on this school day
+     * @param $subject - Class
      * @return bool
      */
     public function has_subject($subject): bool
@@ -96,7 +95,7 @@ class SchoolDay
     }
 
     /**
-     * Возвращает дату
+     * Returns DateTime object of this school day
      * @return DateTime
      */
     public function get_date()
@@ -105,8 +104,8 @@ class SchoolDay
     }
 
     /**
-     * Форматирует дату, по умолчанию в формате d.m. Возвращает null,
-     * если объект содержит null
+     * Formats date ('d.m' by default). Returns null if this school day
+     * object contains null
      * @param string $format
      * @return string|null
      */
@@ -116,8 +115,8 @@ class SchoolDay
     }
 
     /**
-     * Изменяет дату по принципу \DateTime
-     * @param string $interval - Интервал для изменения
+     * Modifies date in the same way \DateTime does
+     * @param string $interval 
      */
     public function modify(string $interval): void
     {
@@ -128,7 +127,7 @@ class SchoolDay
     }
 
     /**
-     * Проверяет, рабочий ли день содержит объект
+     * Checks whether there are classes this school day
      * @return bool
      */
     public function has_lessons(): bool
@@ -137,7 +136,7 @@ class SchoolDay
     }
 
     /**
-     * Возвращает набор предметов для этой даты
+     * Returns classes for this school day
      * @return array
      */
     public function get_subjects()
@@ -146,8 +145,8 @@ class SchoolDay
     }
 
     /**
-     * Сравнивает даты
-     * @param SchoolDay $day - Второй объект \Utility\SchoolDay
+     * Compares dates' months and days
+     * @param SchoolDay $day
      * @return bool
      */
     public function equals(self $day): bool
@@ -156,20 +155,22 @@ class SchoolDay
     }
 
     /**
-     * Возвращает дату в формате '2 января'
+     * Returns a string like '2 января'
      * @return string
      */
     public function __toString()
     {
-        if ($this->date_string === null)
-            $this->date_string = $this->date->format('j') . ' ' . self::MONTH_DESC[$this->date->format('n')];
+        if ($this->date_string === null) {
+            $this->date_string = $this->date->format('j') . ' ' .
+                self::MONTH_DESC[$this->date->format('n')];
+        }
         return (string) $this->date_string;
     }
 
 
     /**
-     * Создаёт дату из строки в формате 'd.m'
-     * @param string $date - Строка с датой
+     * Transforms string in format 'd.m' into date
+     * @param string $date - String with date
      * @return SchoolDay
      */
     public static function from(string $date): self
@@ -178,9 +179,9 @@ class SchoolDay
     }
 
     /**
-     * Создаёт дату из строки в указанном формате
-     * @param string $format - Строка с датой
-     * @param string $date - Формат
+     * Transforms string into date in provided format
+     * @param string $format - Format
+     * @param string $date - String with date
      * @return SchoolDay
      */
     public static function from_format(string $format, string $date): self
@@ -189,34 +190,37 @@ class SchoolDay
     }
 
     /**
-     * Возвращает следующий рабочий день
-     * @param null|SchoolDay|DateTime $date
+     * Returns the following working day after given one 
+     * (or the day of tomorrow is $date is null)
+     * @param SchoolDay|DateTime|null $date
      * @return SchoolDay
      * @throws \Exception
      */
     public static function next_after($date = null): self
     {
-        $date = $date === null ?
-            new DateTime() : ($date instanceof SchoolDay ?
-                ($date->is_null()
-                    ? new DateTime() :
-                    $date->get_date()) :
-                $date);
+        if ($date === null) {
+            $date = new DateTime();
+        } else if ($date instanceof SchoolDay) {
+            $date = $date->is_null() ? new DateTime() : $date->get_date();
+        }
 
-        $date->modify('+1 day');
         $i = 1;
+        $date->modify('+1 day');
         while (!Weekends::is_working($date)) {
             if ($i > 366) return null;
             $date->modify('+1 day');
             $i++;
         }
-        if ($date->format('D') === 'Fri') $date->modify('+2 days');
+
+        if ($date->format('D') === 'Fri') {
+            $date->modify('+2 days');
+        }
         return new self($date);
     }
 
     /**
-     * Находит дату в данной строке
-     * @param string $string - Строка с датой
+     * Finds date in a string
+     * @param string $string - String to search date
      * @return SchoolDay
      * @throws InvalidMonthException
      * @throws InvalidDayException
@@ -230,24 +234,30 @@ class SchoolDay
         if (preg_match('/(?:на|с|по|до)\s*(\d{1,2})[^\p{L}](\d{1,2})/ui', $string, $data)) {
             $day = (int) $data[1];
             $month = (int) $data[2];
-            if ($month < 1 || $month > 12)
+            if ($month < 1 || $month > 12) {
                 throw new InvalidMonthException("Неверный месяц '$month'");
-            if ($day < 1 || $day > cal_days_in_month(CAL_GREGORIAN, $month, date('Y')))
+            }
+            if ($day < 1 || $day > cal_days_in_month(CAL_GREGORIAN, $month, date('Y'))) {
                 throw new InvalidDayException("Неверный день '$day'");
+            }
             $res = self::from("$day.$month");
-        } // на 12 декабря
+        }
+        // на 12 декабря
         else if (preg_match('/(?:на|с|по|до)\s*(\d{1,2})\s*(янв|фев|мар|апр|мая|ию[нл]|авг|сен|окт|ноя|дек)\p{L}*/ui', $string, $data)) {
             $day = (int) $data[1];
             $month = self::MONTH_DESC[$data[2]];
-            if ($day < 1 || $day > cal_days_in_month(CAL_GREGORIAN, $month, date('Y')))
+            if ($day < 1 || $day > cal_days_in_month(CAL_GREGORIAN, $month, date('Y'))) {
                 throw new InvalidDayException("Неверный день '$day'");
+            }
             $res = self::from("$day.$month");
-        } // на понедельник
+        }
+        // на понедельник
         else if (preg_match('/(?:на|с|по|до)\s+(по?н|вт|ср|че?т|пя?т|су?б|во?с)\p{L}*/ui', $string, $data)) {
-            $weekday = self::WEEKDAYS_DESC[strlen($data[1]) <= 5 ?
-                $data[1] : mb_substr($data[1], 0, 1) . mb_substr($data[1], 2, 1)];
+            $weekday = self::WEEKDAYS_DESC[strlen($data[1]) <= 5 ? $data[1] :
+                mb_substr($data[1], 0, 1) . mb_substr($data[1], 2, 1)];
             $res = self::from_format('D', $weekday);
-        } // на 7
+        }
+        // на 7
         else if (preg_match('/(?:на|с|по|до)\s*(\d{1,2})/ui', $string, $data)) {
             $day = (int) $data[1];
             $month = date('m');
@@ -261,16 +271,21 @@ class SchoolDay
                 $month++;
             }
             $res = self::from("$day.$month");
-        } // на завтра
+        }
+        // на завтра
         else if (preg_match('/(?:на|с|по|до)\s+завтр\p{L}*/ui', $string, $data)) {
             $res = new self(new DateTime('+1 day'));
-        } // на сегодня
+        }
+        // на сегодня
         else if (preg_match('/(?:на|с|по|до)\s+сегод\p{L}*/ui', $string, $data)) {
             $res = new self(new DateTime());
-        } // на вчера
+        }
+        // на вчера
         else if (preg_match('/(?:на|с|по|до)\s+вчер\p{L}*/ui', $string, $data)) {
             $res = new self(new DateTime('-1 day'));
-        } else return new self();
+        } else {
+            return new self();
+        }
 
         $string = trim(preg_replace("/{$data[0]}/ui", '', $string));
 

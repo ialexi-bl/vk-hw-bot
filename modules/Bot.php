@@ -2,7 +2,6 @@
 
 namespace HwBot;
 
-use DatePeriod;
 use DateTime;
 use const HwBot\DataBase\DB_HW_TABLE;
 use const HwBot\VkApi\CALLBACK_API_CONFIRMATION_TOKEN;
@@ -14,8 +13,6 @@ use HwBot\VkApi\VkApi;
 use InvalidArgumentException;
 use Utility\BotWorkException;
 use Utility\InvalidDateException;
-use Utility\InvalidDayException;
-use Utility\InvalidMonthException;
 use Utility\MissingDataException;
 use Utility\NoDateException;
 use Utility\NoHomeworkException;
@@ -57,10 +54,12 @@ class Bot
         '/(т[иы]\s+)?[хк]то(?(1)|\s+т[иы])/' => [
             'Я Коннор, прислан из Киберлайф',
             'Я Маркус, но друзья зовут меня устраивать реловюцию',
-            'Я?',
         ],
     ];
 
+    /**
+     * @param mixed $object - Event object from VK API
+     */
     public function __construct($object)
     {
         $this->peer_id = $object['peer_id'];
@@ -73,6 +72,7 @@ class Bot
             $last_error = error_get_last();
             if ($last_error !== null) {
                 Utility::log_err($last_error['message']);
+
                 if ($this->debug_mode) {
                     $this->send_message($last_error['message']);
                 }
@@ -82,91 +82,109 @@ class Bot
 
     public function handle_event($event)
     {
-        switch ($event['type']):
+        switch ($event['type']) {
             case EVENT_CONFIRMATION:
                 exit(CALLBACK_API_CONFIRMATION_TOKEN);
             case EVENT_MESSAGE_NEW:
                 $this->handle_new_message($event['object']);
-        endswitch;
+        }
     }
 
     protected function handle_new_message($object)
     {
-
-        // Check saved temporary data
+        // Check if there is temporary data about this user
         $temp_file_name = __DIR__ . "/../temp/message_{$this->peer_id}-{$this->from_id}.json";
         if (file_exists($temp_file_name)) {
             $temp_data = json_decode(file_get_contents($temp_file_name), true);
 
-            // If data is older than 30min we don't need it
-            if (time() - $temp_data['time'] > 60 * 30) $temp_data = [];
-        } else $temp_data = [];
+            // If data is older than 30min, then it has expires
+            if (time() - $temp_data['time'] > 60 * 30) {
+                $temp_data = [];
+            }
+        } else {
+            $temp_data = [];
+        }
 
-        // Delete leading response text
+        // Delete community ID
         $text = preg_replace('/^.*?\[club.+?\][\s,]*/uim', '', $object['text']);
-        // Check for debug mode
+        // Check debug mode
         if (preg_match('/^--debug/ui', $text)) {
             $text = preg_replace('/^--debug\s*/ui', '', $text);
             $this->debug_mode = true;
         }
-        $text = trim($text);
 
+        $text = trim($text);
         $msg = '';
 
-        if ($this->debug_mode && isset($temp_data['func']))
+        if ($this->debug_mode && isset($temp_data['func'])) {
             $msg .= "Temp data function: {$temp_data['func']}\n";
+        }
 
-        // Delete messages if requested
+        // Delete messages if scheduled
         if (isset($temp_data['delete_msg'])) {
             VkApi::delete_message($temp_data['delete_msg']);
             unset($temp_data['delete_msg']);
         }
 
         // Handle previous request
-        if (isset($temp_data['func']) && isset($temp_data['expected']) && in_array(mb_strtolower($text), $temp_data['expected'])) {
+        if (
+            isset($temp_data['func']) &&
+            isset($temp_data['expected']) &&
+            in_array(mb_strtolower($text), $temp_data['expected'])
+        ) {
             $msg = call_user_func([$this, $temp_data['func']], $text, $temp_data);
         } else {
-            do {
-                if (preg_match('/^добав\p{L}*\s+выходн/ui', $text))
-                    $msg .= $this->add_weekend($text);
-                else if (preg_match('/^удал\p{L}*\s+выходн/ui', $text))
-                    $msg .= $this->delete_weekend($text);
-                else if (preg_match('/^добав/ui', $text)) // Add homework
-                    $msg .= $this->set_homework($text);
-                else if (preg_match('/^[чш]т?[оёе]\s*(по|на|зад)/ui', $text)) // Get homework
-                    $msg .= $this->get_homework($text);
-                else if (preg_match('/^удал/ui', $text)) // Delete homework
-                    $msg .= $this->delete_homework($text);
-                else if (preg_match('/^(к[оа]гда|сколь\p{L}*\s+д\p{L}+)\s+к[уа]ник/ui', $text)) // Check vacations
-                    $msg .= $this->get_vacations();
-                else if (preg_match('/^измен\p{L}*\s+к[ауо]ник/ui', $text))
-                    $msg .= $this->change_vacations($text);
-                else {
-                    foreach (self::RESPONSES as $regex => $answers) {
-                        if (preg_match($regex . 'ui', $text)) {
-                            $msg .= $answers[mt_rand(0, count($answers) - 1)];
-                            break 2;
-                        }
+            if (preg_match('/^добав\p{L}*\s+выходн/ui', $text)) {
+                $msg .= $this->add_weekend($text);
+            } else if (preg_match('/^удал\p{L}*\s+выходн/ui', $text)) {
+                $msg .= $this->delete_weekend($text);
+            } else if (preg_match('/^добав/ui', $text)) {
+                $msg .= $this->set_homework($text);
+            } else if (preg_match('/^[чш]т?[оёе]\s*(по|на|зад)/ui', $text)) {
+                $msg .= $this->get_homework($text);
+            } else if (preg_match('/^удал/ui', $text)) {
+                $msg .= $this->delete_homework($text);
+            } else if (preg_match('/^(к[оа]гда|сколь\p{L}*\s+д\p{L}+)\s+к[уа]ник/ui', $text)) {
+                $msg .= $this->get_vacations();
+            } else if (preg_match('/^измен\p{L}*\s+к[ауо]ник/ui', $text)) {
+                $msg .= $this->change_vacations($text);
+            } else {
+                $found = false;
+                foreach (self::RESPONSES as $regex => $answers) {
+                    if (preg_match($regex . 'ui', $text)) {
+                        $msg .= $answers[mt_rand(0, count($answers) - 1)];
+                        $found = true;
+                        break;
                     }
+                }
+                if (!$found) {
                     $msg .= 'Не понел';
                 }
-            } while (false);
+            }
         }
+
         echo $msg;
-        
-        file_put_contents($temp_file_name, empty($this->temp_data) ? '' : json_encode(array_merge($this->temp_data, [
-            'time' => time(),
-        ]), JSON_UNESCAPED_UNICODE));
+
+        file_put_contents(
+            $temp_file_name,
+            empty($this->temp_data) ? '' : json_encode(array_merge($this->temp_data, [
+                'time' => time(),
+            ]), JSON_UNESCAPED_UNICODE)
+        );
     }
 
-    private function change_vacations($text, $last_request = []): string
+    private function change_vacations(string $text, $last_request = []): string
     {
         $msg = '';
         if (!isset($last_request['status'])) {
             $period = Weekends::find_vacations_in($text);
 
-            if ($period === null) return $msg . "Я не нашёль каникулы";
-            if ($this->debug_mode) $msg .= "Found: {$period['name']}\n";
+            if ($period === null) {
+                return $msg . "Я не нашёль каникулы";
+            }
+            if ($this->debug_mode) {
+                $msg .= "Found: {$period['name']}\n";
+            }
 
             try {
                 $first_date = SchoolDay::from_string($text);
@@ -174,10 +192,14 @@ class Bot
             } catch (InvalidDateException $e) {
                 return $msg . ($this->debug_mode ? $e : $e->getMessage());
             }
-            if ($first_date->is_null()) return $msg . "Я не нашёль дату";
+
+            if ($first_date->is_null()) {
+                return $msg . "Я не нашёль дату";
+            }
 
             $msg .= "Изменить {$period['name']} каникулы?\n";
-            $msg .= "Новый период: с $first_date по " . ($second_date->is_null() ? SchoolDay::from($period['end']) : $second_date);
+            $msg .= "Новый период: с $first_date по " .
+                ($second_date->is_null() ? SchoolDay::from($period['end']) : $second_date);
 
             $this->temp_data = [
                 'func' => __FUNCTION__,
@@ -188,7 +210,11 @@ class Bot
                 'end' => $second_date->is_null() ? $period['end'] : $second_date->format(),
             ];
         } else if ($last_request['status'] === 'acceptation') {
-            Weekends::modify_vacations($last_request['name'], $last_request['start'], $last_request['end']);
+            Weekends::modify_vacations(
+                $last_request['name'],
+                $last_request['start'],
+                $last_request['end']
+            );
             $msg .= 'Каникулы изменены';
             $this->temp_data = $last_request;
         }
@@ -204,16 +230,21 @@ class Bot
         } catch (InvalidDateException $e) {
             return $msg . ($this->debug_mode ? $e : $e->getMessage());
         }
-        if ($this->debug_mode) $msg .= "Date found: " . $day->format() . "\n";
-        $msg .= Weekends::add_weekend($day->format()) === false ?
-            "$day уже отмечен как выходной" :
-            "Добавлен выходной на $day";
 
+        if ($this->debug_mode) {
+            $msg .= "Date found: " . $day->format() . "\n";
+        }
+
+        if (Weekends::add_weekend($day->format()) === false) {
+            $msg .= "$day уже отмечен как выходной";
+        } else {
+            $msg .= "Добавлен выходной на $day";
+        }
 
         return $msg;
     }
 
-    private function delete_weekend($text, $last_request = []): string
+    private function delete_weekend($text): string
     {
         $msg = '';
         try {
@@ -221,10 +252,16 @@ class Bot
         } catch (InvalidDateException $e) {
             return $msg . ($this->debug_mode ? $e : $e->getMessage());
         }
-        if ($this->debug_mode) $msg .= "Date found: " . $day->format() . "\n";
-        $msg .= Weekends::delete_weekend($day->format()) === false ?
-            "$day это не выходной" :
-            "Удалён выходной с $day";
+
+        if ($this->debug_mode) {
+            $msg .= "Date found: " . $day->format() . "\n";
+        }
+
+        if (Weekends::delete_weekend($day->format()) === false) {
+            $msg .= "$day это не выходной";
+        } else {
+            $msg .= "Удалён выходной с $day";
+        }
 
         return $msg;
     }
@@ -232,31 +269,45 @@ class Bot
     private function get_vacations()
     {
         $msg = '';
+        $temp = Weekends::get_vacation_for(date('d.m'));
+        if ($temp !== null) {
+            $msg .= "Сейчас уже каникулы :3\n";
+        }
 
-        if (($temp = Weekends::get_vacation_for(date('d.m'))) !== null) $msg .= "Сейчас уже каникулы :3\n";
-
-        $from_date = $temp === null ?
-            new DateTime('-1 day') : DateTime::createFromFormat('d.m.Y', $temp['end']);
+        $from_date = $temp === null ? new DateTime('-1 day') :
+            DateTime::createFromFormat('d.m.Y', $temp['end']);
         $from_date->modify('+1 day');
         $next_vacations = Weekends::get_vacation_after($from_date);
-        if ($next_vacations === null) return 'Я не нашёль информацию про каникулы';
-        $msg .= "Следующие каникулы - {$next_vacations['name']} (" .
-            SchoolDay::from($next_vacations['start']) . " - " . SchoolDay::from($next_vacations['end']) . ")\nДо них осталось";
-        $interval = $from_date
-            ->diff(DateTime::createFromFormat('d.m', $next_vacations['start']));
 
+        if ($next_vacations === null) {
+            return 'Я не нашёль информацию про каникулы';
+        }
+
+        $msg .= "Следующие каникулы - {$next_vacations['name']} (" .
+            SchoolDay::from($next_vacations['start']) . " - " .
+            SchoolDay::from($next_vacations['end']) . ")\nДо них осталось";
+
+        $interval = $from_date->diff(
+            DateTime::createFromFormat('d.m', $next_vacations['start'])
+        );
         $months = $interval->format('%m');
         $days = $interval->format('%d');
         $weeks = floor($days / 7);
 
-        if ($months !== '0') $msg .= " $months " . Parser::decline($months, 'месяц', ['', 'а', 'ев']) . " и";
+        if ($months !== '0') {
+            $msg .= " $months " .
+                Parser::decline($months, 'месяц', ['', 'а', 'ев']) . " и";
+        }
         $msg .= " $days " . Parser::decline($days, '', ['день', 'дня', 'дней']) . " (";
+
         if ($months !== '0') {
             $total = $interval->format('%a');
             $weeks = floor($total / 7);
             $msg .= "$total " . Parser::decline($total, '', ['день', 'дня', 'дней']) . ", ";
         }
-        $msg .= ($weeks === ($total ?? $days) / 7 ? '' : '~') . "$weeks " . Parser::decline($weeks, 'недел', ['я', 'и', 'ь']) . ")";
+        $msg .= ($weeks === ($total ?? $days) / 7 ? '' : '~') . "$weeks " .
+            Parser::decline($weeks, 'недел', ['я', 'и', 'ь']) . ")";
+
         return $msg;
     }
 
@@ -266,6 +317,7 @@ class Bot
             $this->temp_data = ['delete_msg' => '' . $this->send_message('нет')];
             return '';
         }
+
         $msg = '';
         try {
             $bundle = Parser::parse($text);
@@ -275,8 +327,9 @@ class Bot
             $for_day = empty($subjects);
             $has_lessons = $date->has_lessons();
 
-            if ($this->debug_mode)
+            if ($this->debug_mode) {
                 $msg .= $bundle;
+            }
 
             if (!$has_lessons) {
                 $date = SchoolDay::next_after($date);
@@ -285,49 +338,76 @@ class Bot
                 }
             }
             $msg .= "Вот, что я нашёль";
-            if ($date_implicit || $for_day || !$has_lessons)
+            if ($date_implicit || $for_day || !$has_lessons) {
                 $msg .= " на $date";
+            }
 
-            if ($for_day) $subjects = SCHEDULE[$date->format('D')];
+            if ($for_day) {
+                $subjects = SCHEDULE[$date->format('D')];
+            }
 
 
             $msg .= "\n";
 
             $homework = [];
             $no_homework = [];
+
             $conn = Utility::dbConnect();
-            $stmt = $conn->prepare("SELECT homework FROM " . DB_HW_TABLE . " WHERE subject = :subject AND date = :date");
+            $stmt = $conn->prepare(
+                "SELECT homework FROM " . DB_HW_TABLE .
+                    " WHERE subject = :subject AND date = :date"
+            );
+
             foreach ($subjects as $subject) {
-                if (!($subject instanceof Subject)) $subject = new Subject($subject);
+                if (!($subject instanceof Subject)) {
+                    $subject = new Subject($subject);
+                }
+
                 $sp_date = $subject->get_next_day_from($date);
                 $text = '';
 
-                $stmt->execute([':subject' => (string) $subject, ':date' => $sp_date->format()]);
+                $stmt->execute([
+                    ':subject' => (string) $subject,
+                    ':date' => $sp_date->format()
+                ]);
                 $data = $stmt->fetch();
-                if ($this->debug_mode) $msg .= "$subject, {$sp_date->format()}, db: " . print_r($data, true) . "\n";
+
+                if ($this->debug_mode) {
+                    $msg .= "$subject, {$sp_date->format()}, db: " . print_r($data, true) . "\n";
+                }
+
                 $has_homework = !empty($data);
+                if (!$date_implicit && !$date->has_subject($subject)) {
+                    $text = "• $date нет {$subject->get_genitive()}. " .
+                        "После этого будет $sp_date. Задание:";
+                } else {
+                    $text .= "• По " . $subject->get_dative() .
+                        ($date_implicit && !$for_day ? " на $sp_date" : '');
+                }
 
-                if (!$date_implicit && !$date->has_subject($subject))
-                    $text = "• $date нет {$subject->get_genitive()}. После этого будет $sp_date. Задание:";
-                else
-                    $text .= "• По " . $subject->get_dative() . ($date_implicit && !$for_day ? " на $sp_date" : '');
-
-                if ($has_homework)
+                if ($has_homework) {
                     $homework[] = $text . "\n― " . Utility::mb_ucfirst($data['homework']);
-                else
+                } else {
                     $no_homework[] = $text;
+                }
             }
-            /** @noinspection PhpUnusedLocalVariableInspection */
             $conn = $stmt = null;
-            $msg .= implode("\n", $homework) . (empty($homework) ? '' : "\n") .
-                (empty($no_homework) ? '' : implode("\n", $no_homework) . "\n― Нет в базе");
+
+            $msg .= implode("\n", $homework);
+            if (!empty($homework)) {
+                $msg .= "\n";
+            }
+            if (!empty($no_homework)) {
+                $msg .= implode("\n", $no_homework) . "\n― Нет в базе";
+            }
         } catch (InvalidDateException $e) {
             $msg .= $this->debug_mode ? (string) $e : $e->getMessage();
         } catch (InvalidArgumentException $e) {
             $msg .= $this->debug_mode ? (string) $e : $e->getMessage();
         } catch (\Exception $e) {
             Utility::log_err($e);
-            $msg .= $this->debug_mode ? (string) $e : "У мене не получилось достать информацию :(";
+            $msg .= $this->debug_mode ? (string) $e :
+                "У мене не получилось достать информацию :(";
         }
         return $msg;
     }
